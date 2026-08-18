@@ -467,7 +467,7 @@ The UI focuses on:
 
 ## Hosted Demo
 
-**Demo:** `<add-hosted-demo-url>`
+**Demo:** `https://developer-graph-mauve.vercel.app/`
 
 ## Screen Recording
 
