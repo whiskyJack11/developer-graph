@@ -251,23 +251,6 @@ console.log("Connected to CognoDB");
         (node)-[:USED_IN]->(shopsphere)
     `);
 
-    console.log("Creating CONTRIBUTED_TO relationships...");
-
-    await session.run(`
-      MATCH
-        (sarah:Developer {id: "dev-001"}),
-        (alex:Developer {id: "dev-002"}),
-        (david:Developer {id: "dev-003"}),
-
-        (finledger:Project {id: "project-finledger"}),
-        (shopsphere:Project {id: "project-shopsphere"})
-
-      CREATE
-        (sarah)-[:CONTRIBUTED_TO]->(finledger),
-        (alex)-[:CONTRIBUTED_TO]->(shopsphere),
-        (david)-[:CONTRIBUTED_TO]->(finledger)
-    `);
-
     console.log("Seed completed successfully.");
   } finally {
     await session.close();

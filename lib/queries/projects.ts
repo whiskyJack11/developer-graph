@@ -5,6 +5,7 @@ export const getAllProjectsQuery = `
   RETURN
     properties(p) AS project,
     properties(d) AS domain
+
   ORDER BY p.name
 `;
 
@@ -20,7 +21,11 @@ export const getProjectDetailsQuery = `
     collect(DISTINCT technology) AS technologies
 
   OPTIONAL MATCH
-    (developer:Developer)-[:KNOWS]->(matchedTechnology:Technology)-[:USED_IN]->(p)
+    (developer:Developer)
+    -[:KNOWS]->
+    (matchedTechnology:Technology)
+    -[:USED_IN]->
+    (p)
 
   WITH
     p,
@@ -34,7 +39,11 @@ export const getProjectDetailsQuery = `
   RETURN
     properties(p) AS project,
     properties(domain) AS domain,
-    [technology IN technologies | properties(technology)] AS technologies,
+
+    [technology IN technologies |
+      properties(technology)
+    ] AS technologies,
+
     collect(
       CASE
         WHEN developer IS NULL THEN NULL

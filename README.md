@@ -1,8 +1,8 @@
 # DevGraph
 
-DevGraph is a small web application backed by **CognoDB** that demonstrates how graph relationships can be used to connect software projects, technologies, developers, and business domains.
+DevGraph is a small web application backed by **CognoDB** that helps users explore software projects and find developers whose technology skills match each project's stack.
 
-The application allows a user to browse software projects, inspect the technologies used by each project, and discover developers whose technology skills match the selected project's stack.
+The application is intentionally simple and focuses on demonstrating graph data modeling, multi-hop traversal, parameterized Cypher queries, and a complete user-facing workflow.
 
 ## Tech Stack
 
@@ -15,9 +15,11 @@ The application allows a user to browse software projects, inspect the technolog
 
 ## Use Case
 
-Software projects depend on different technologies, while developers have experience with different technologies.
+Each software project uses a set of technologies.
 
-DevGraph models these connections directly as a graph.
+Each developer knows a set of technologies.
+
+DevGraph uses these relationships to find developers whose skills overlap with the technologies used by a selected project.
 
 For example:
 
@@ -33,37 +35,36 @@ Technology
 Project
 ```
 
-When a user opens a project, DevGraph traverses these relationships to identify developers who know technologies used by that project.
-
-Developers are then ranked by the number of technologies they match.
+When a user opens a project, DevGraph traverses these relationships and ranks developers by the number of matching technologies.
 
 ## Why a Graph Database?
 
-The useful information in DevGraph is primarily about **relationships** rather than isolated records.
+The important part of this use case is the relationships between developers, technologies, projects, and domains.
 
 The application needs to answer questions such as:
 
 * Which technologies are used by a project?
 * Which developers know those technologies?
 * Which developers have the strongest overlap with a project's technology stack?
-* Which domain does a project belong to?
-* Which developers have previously contributed to particular projects?
+* Which business domain does a project belong to?
 
-A relational database could represent this information using developers, projects, technologies, and multiple join tables.
+A relational database could represent this information using multiple tables and join tables.
 
-However, the main DevGraph query naturally follows a relationship path:
+For example, matching developers to a project would typically require joining developers to developer-technologies, technologies to project-technologies, and then grouping the results.
+
+In a graph database, these relationships are represented directly.
+
+The main DevGraph traversal is:
 
 ```text
 Developer → Technology → Project
 ```
 
-In a graph database, these relationships are stored directly and can be traversed naturally using Cypher.
-
-This makes a graph model a good fit for the relationship-focused queries used by the application.
+This relationship-heavy query is therefore a natural fit for a graph database.
 
 ## Graph Data Model
 
-DevGraph uses four node labels:
+DevGraph contains four node labels:
 
 ```text
 ┌───────────────┐
@@ -87,8 +88,6 @@ DevGraph uses four node labels:
 ┌───────────────┐
 │    Domain     │
 └───────────────┘
-
-Developer ── CONTRIBUTED_TO ──> Project
 ```
 
 ### Developer
@@ -102,14 +101,6 @@ role
 experienceYears
 ```
 
-Example:
-
-```text
-Sarah Chen
-Senior Frontend Engineer
-8 years experience
-```
-
 ### Technology
 
 Properties:
@@ -118,17 +109,6 @@ Properties:
 id
 name
 category
-```
-
-Examples:
-
-```text
-React
-Next.js
-TypeScript
-Node.js
-PostgreSQL
-Redis
 ```
 
 ### Project
@@ -141,13 +121,6 @@ name
 description
 ```
 
-Examples:
-
-```text
-FinLedger
-ShopSphere
-```
-
 ### Domain
 
 Properties:
@@ -157,21 +130,12 @@ id
 name
 ```
 
-Examples:
-
-```text
-Fintech
-E-commerce
-```
-
 ## Relationships
 
-The graph uses the following typed relationships:
+The graph uses three relationship types:
 
 ```text
 Developer -[:KNOWS]-> Technology
-
-Developer -[:CONTRIBUTED_TO]-> Project
 
 Technology -[:USED_IN]-> Project
 
@@ -182,29 +146,27 @@ Project -[:IN_DOMAIN]-> Domain
 
 Represents a technology a developer has experience with.
 
+Example:
+
 ```text
-Sarah Chen -[:KNOWS]-> React
+Sarah Chen -[:KNOWS]-> TypeScript
 ```
 
 ### `USED_IN`
 
-Represents a technology used by a software project.
+Represents a technology used by a project.
+
+Example:
 
 ```text
-Next.js -[:USED_IN]-> FinLedger
-```
-
-### `CONTRIBUTED_TO`
-
-Represents a developer who has previously contributed to a project.
-
-```text
-Sarah Chen -[:CONTRIBUTED_TO]-> FinLedger
+TypeScript -[:USED_IN]-> FinLedger
 ```
 
 ### `IN_DOMAIN`
 
 Connects a project to its business domain.
+
+Example:
 
 ```text
 FinLedger -[:IN_DOMAIN]-> Fintech
@@ -212,9 +174,9 @@ FinLedger -[:IN_DOMAIN]-> Fintech
 
 ## Main Graph Query
 
-The most important query in DevGraph finds developers whose technology knowledge overlaps with the technology stack of a selected project.
+The main feature of DevGraph finds developers whose skills overlap with the selected project's technology stack.
 
-The relevant graph traversal is:
+The graph traversal is:
 
 ```text
 Developer
@@ -228,7 +190,7 @@ Technology
 Project
 ```
 
-This is a multi-hop traversal across two relationships.
+This is a two-hop traversal.
 
 A simplified version of the query is:
 
@@ -253,6 +215,8 @@ RETURN
 ORDER BY matchedTechnologies DESC
 ```
 
+The query ranks developers based on how many technologies they know that are used by the selected project.
+
 For example, if a project uses:
 
 ```text
@@ -270,19 +234,15 @@ PostgreSQL
 Redis
 ```
 
-that developer receives a match count of:
+the developer has:
 
 ```text
 2 matching technologies
 ```
 
-The query therefore uses the structure of the graph to rank developers based on their connections to the technologies used by the project.
-
 ## Parameterized Queries
 
-Queries are executed using the official Neo4j JavaScript driver.
-
-User or route values are passed as parameters rather than being concatenated into Cypher strings.
+Queries use parameters rather than string-concatenated Cypher.
 
 For example:
 
@@ -291,7 +251,7 @@ MATCH (p:Project {id: $id})
 RETURN p
 ```
 
-The parameter is supplied separately:
+The route value is passed separately:
 
 ```ts
 runQuery(query, {
@@ -299,39 +259,34 @@ runQuery(query, {
 });
 ```
 
-This keeps query construction separate from input values.
+This keeps query input separate from query construction.
 
 ## Application Flow
 
-The application intentionally has a small user flow.
+The application has a simple two-page flow.
 
-### 1. Browse Projects
+### 1. Project List
 
-The homepage displays available software projects.
+The homepage displays the available software projects.
 
-Each project displays:
+Each project shows:
 
 * project name
 * description
 * business domain
-* link to view the project
+* link to view project details
 
-### 2. View Project
+### 2. Project Details
 
-Selecting a project opens its detail page.
-
-The page displays:
+The project page displays:
 
 * project name
 * description
-* domain
+* business domain
 * technology stack
+* developers ranked by matching technologies
 
-### 3. View Developer Matches
-
-The project page also displays developers ranked by how many technologies they know that are used by the project.
-
-This matching result comes directly from the multi-hop CognoDB traversal.
+The developer ranking is calculated using the CognoDB multi-hop traversal.
 
 ## Project Structure
 
@@ -341,7 +296,6 @@ devgraph/
 │   ├── project/
 │   │   └── [id]/
 │   │       └── page.tsx
-│   │
 │   ├── error.tsx
 │   ├── loading.tsx
 │   ├── globals.css
@@ -370,27 +324,33 @@ devgraph/
 
 ## CognoDB Connection
 
-CognoDB communicates using openCypher over the Bolt protocol and can be accessed using the official Neo4j driver.
+CognoDB is accessed through the official Neo4j JavaScript driver.
 
-The application keeps the database connection logic in:
+The database connection is kept in:
 
 ```text
 lib/cognodb.ts
 ```
 
-The rest of the application uses a small helper:
+The application uses a small helper function:
 
 ```ts
 runQuery(query, params)
 ```
 
-This keeps database connectivity separate from application pages and Cypher queries.
+This keeps database connection logic separate from pages and Cypher queries.
 
 ## Environment Variables
 
-Database credentials are never stored directly in the source code.
+Database credentials are stored in environment variables.
 
-Create a `.env.local` file in the root of the project:
+Create:
+
+```text
+.env.local
+```
+
+with:
 
 ```env
 COGNODB_URI=bolt+s://<instance-id>.databases.cognodb.cloud
@@ -410,15 +370,13 @@ COGNODB_PASSWORD=
 
 ## CognoDB Cloud Setup
 
-1. Create an account in CognoDB Cloud.
-2. Create a free `c0` database instance.
+1. Create a CognoDB Cloud account.
+2. Create a free `c0` instance.
 3. Select a region.
-4. Wait for the database instance to finish provisioning.
-5. Save the generated connection URI.
+4. Wait for the instance to finish provisioning.
+5. Copy the generated Bolt connection URI.
 6. Save the generated password for the `cognodb` user.
-7. Add the connection details to `.env.local`.
-
-The generated password should be stored securely because it is used by both the application and the seed script.
+7. Add the values to `.env.local`.
 
 ## Local Setup
 
@@ -440,23 +398,11 @@ Install dependencies:
 npm install
 ```
 
-Create:
-
-```text
-.env.local
-```
-
-Add your CognoDB connection details:
-
-```env
-COGNODB_URI=bolt+s://<instance-id>.databases.cognodb.cloud
-COGNODB_USERNAME=cognodb
-COGNODB_PASSWORD=<your-password>
-```
+Create `.env.local` and add your CognoDB credentials.
 
 ## Seed the Database
 
-The repository includes a seed script containing realistic example developers, technologies, projects, domains, and relationships.
+The repository contains a seed script with realistic developers, technologies, projects, domains, and relationships.
 
 Run:
 
@@ -464,23 +410,21 @@ Run:
 npm run seed
 ```
 
-A successful seed should finish with:
+A successful run should finish with:
 
 ```text
 Seed completed successfully.
 ```
 
-The seed script creates the graph structure required by the application.
-
 ## Run the Application
 
-Start the Next.js development server:
+Start the development server:
 
 ```bash
 npm run dev
 ```
 
-Then open:
+Open:
 
 ```text
 http://localhost:3000
@@ -488,16 +432,13 @@ http://localhost:3000
 
 ## Error Handling
 
-The application includes basic error handling for database failures.
-
-If CognoDB cannot be reached, the application displays an error state rather than failing silently.
-
-The application also includes:
+The application includes:
 
 * loading state during navigation
 * empty state when no projects are available
-* empty technology state
-* empty developer-match state
+* empty state when a project has no technologies
+* empty state when no developers match
+* graceful database error state
 
 ## UI and UX
 
@@ -505,14 +446,14 @@ The interface is intentionally simple so a non-technical user can understand the
 
 The UI focuses on:
 
-* clear project cards
 * readable typography
+* clear project cards
 * simple navigation
 * technology labels
 * understandable developer match results
 * loading states
 * empty states
-* database error handling
+* error handling
 
 ## Screenshots
 
@@ -520,7 +461,7 @@ The UI focuses on:
 
 ![DevGraph project list](./public/screenshots/projects.png)
 
-### Project Details and Developer Matches
+### Project Details
 
 ![DevGraph project details](./public/screenshots/project-details.png)
 
@@ -532,7 +473,7 @@ The UI focuses on:
 
 **Screen recording:** `<add-screen-recording-url>`
 
-## Running a Production Build
+## Production Build
 
 Create a production build:
 
@@ -546,33 +487,27 @@ Run the production server:
 npm start
 ```
 
-## Repository Contents
-
-The repository includes:
-
-* complete Next.js application source code
-* CognoDB connection layer
-* parameterized Cypher queries
-* database seed script
-* graph data model
-* loading, empty, and error states
-* setup instructions
-* UI screenshots
-* hosted demo link
-* screen recording link
-
 ## Summary
 
-DevGraph demonstrates a small but practical use of a graph database.
+DevGraph demonstrates a small, focused use of a graph database.
 
-Rather than using CognoDB simply as a replacement for a relational database, the application uses relationships as part of its core functionality.
-
-The central query traverses:
+The central relationship path is:
 
 ```text
 Developer → Technology → Project
 ```
 
-to find and rank developers whose skills overlap with a project's technology stack.
+The application uses this path to rank developers based on their technology overlap with a selected project.
 
-This keeps the application small while demonstrating graph data modeling, multi-hop traversal, parameterized Cypher queries, application architecture, and a complete user-facing workflow.
+The project demonstrates:
+
+* graph data modeling
+* labeled nodes
+* typed relationships
+* realistic seed data
+* parameterized Cypher
+* multi-hop graph traversal
+* relationship-heavy querying
+* environment-based configuration
+* loading, empty, and error states
+* a simple user-facing web application
